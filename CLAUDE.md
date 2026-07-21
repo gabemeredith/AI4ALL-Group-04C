@@ -15,20 +15,23 @@ maintenance and reduce unexpected downtime?
 Full background (problem motivation, bias/mitigation notes, citations) lives in the team's
 project deck, not duplicated here.
 
-## Dataset
+## Datasets
 
-`nasa_cmapss_FD001_scaled.csv` — NASA C-MAPSS FD001 turbofan degradation set (Prognostics CoE,
-NASA Ames). 20,631 rows, 100 engines (`unit_number` 1-100).
+Two differently-preprocessed versions of the same underlying NASA C-MAPSS FD001 data exist
+across the team — don't assume they're interchangeable:
 
-Columns:
-- `unit_number` — engine ID
-- `time_in_cycles` — cycle count since that engine's start of run
-- `operational_setting_1` — operating condition
-- `sensor_2, sensor_3, sensor_4, sensor_6, sensor_7, sensor_8, sensor_9, sensor_11, sensor_12, sensor_13, sensor_14, sensor_15, sensor_17, sensor_20, sensor_21` — sensor channels (temperature, pressure, vibration, fan speed, etc.)
-- `RUL` — ground-truth remaining useful life in cycles (label)
+- `nasa_cmapss_FD001_scaled.csv` (committed) — 20,631 rows, 100 engines. Columns:
+  `unit_number`, `time_in_cycles`, `operational_setting_1`, `sensor_2/3/4/6/7/8/9/11/12/13/14/15/17/20/21`,
+  `RUL`. Used only by `logistic_regression_base.py`.
+- `train_FD001_scaled.csv` (**not committed yet** — get it from a teammate and drop it in the
+  repo root) — expected columns: `unit`, `cycle`, `op_setting_1`, `op_setting_2`, and 14 named
+  sensors (see `FEATURE_COLS` in `model.py`; notably excludes `sensor_6` but includes
+  `op_setting_2`, unlike the file above). Used by `save_model.py` and the dashboard's
+  "Browse engine" mode.
 
-All sensor/operational-setting columns are already z-score scaled — values are not in raw
-physical units. Keep that in mind in any UI copy ("scaled sensor reading", not "°F"/"psi").
+All sensor/operational-setting columns in both files are already z-score scaled — values are
+not in raw physical units. Keep that in mind in any UI copy ("scaled sensor reading", not
+"°F"/"psi").
 
 ## Models
 
@@ -42,15 +45,26 @@ ways (logistic classification vs. linear regression on capped RUL) on an identic
 engine-grouped train/test split, and reports both native metrics and a shared classification
 scoreboard, plus a custom asymmetric C-MAPSS scoring function.
 
-No LSTM model exists in this repo. The dashboard's RUL prediction is currently backed by a
-stub function in `model.py` (`predict_rul`) — replace that function's internals with a real
-trained model when one is ready; nothing else in the dashboard should need to change.
+`save_model.py` trains the real `RandomForestRegressor` for the dashboard, on
+`train_FD001_scaled.csv`, and saves it to `random_forest_model.pkl` (also not committed —
+generate it locally by running the script once that CSV is in place).
+
+No LSTM model exists in this repo. `model.py`'s `predict_rul()` loads
+`random_forest_model.pkl` when present; when it isn't, it falls back to a placeholder
+heuristic (clearly marked, not a trained model) so the dashboard still shows something. That
+function is the only place a real/updated model needs to be wired in.
 
 ## Dashboard
 
-`app.py` — a Streamlit app: sidebar project description, dropdown to pick an engine, sensor
-readings and predicted RUL for that engine, plus a CSV-upload flow for live predictions on
-uploaded sensor data.
+`app.py` — a Streamlit app with three sidebar-selectable modes, all backed by the same
+`predict_rul()`:
+- **Browse engine** — pick an engine from `train_FD001_scaled.csv`, scrub cycles, see sensor
+  charts and predicted RUL (disabled with a clear message if that CSV isn't present).
+- **Upload CSV** — upload sensor readings, get predicted RUL per row, download results.
+- **Manual input** — hand-enter one engine's sensor readings for a single prediction.
+
+This is a merge of two dashboards that existed briefly in parallel (one engine-browser-first,
+one upload/manual-input-first) — there is only one dashboard entry point now, `app.py`.
 
 Run it with:
 ```

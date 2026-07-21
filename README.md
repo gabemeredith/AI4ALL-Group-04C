@@ -32,7 +32,25 @@ a linear regression on capped RUL, evaluated on an identical engine-grouped trai
 streamlit run app.py
 ```
 
-Lets you pick an engine, inspect its sensor readings and predicted RUL across cycles, and
-upload a CSV of sensor readings for a live prediction. The RUL prediction is currently backed
-by a placeholder heuristic in `model.py` — see the `TODO` there for swapping in a trained
-model (Random Forest / Logistic Regression per the team's plan).
+Three modes, picked from the sidebar:
+- **Browse engine** — pick a training-set engine, scrub through its cycles, see its sensor
+  readings and predicted RUL. Requires `train_FD001_scaled.csv` in the repo root (see below).
+- **Upload CSV** — upload sensor readings and get predicted RUL per row, with a CSV download
+  of the results.
+- **Manual input** — type in one engine's sensor readings by hand and get a predicted RUL.
+
+All three call the same `predict_rul()` in `model.py`.
+
+## Trained model
+
+`save_model.py` trains a `RandomForestRegressor` on `train_FD001_scaled.csv` and saves it to
+`random_forest_model.pkl`:
+
+```
+python save_model.py
+```
+
+`train_FD001_scaled.csv` isn't committed yet — get it from a teammate and drop it in the repo
+root before running this. Until `random_forest_model.pkl` exists, the dashboard falls back to
+a placeholder heuristic in `model.py` (clearly not a trained model, just enough to keep the UI
+functional) — the sidebar shows a warning when this fallback is active.
