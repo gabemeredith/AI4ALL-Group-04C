@@ -4,8 +4,8 @@ RUL prediction.
 Loads the trained Random Forest (random_forest_model.pkl, produced by
 save_model.py) if it exists. Falls back to a placeholder heuristic — NOT a
 trained model — so the dashboard still shows something before the pickle
-exists. Run `python save_model.py` (after adding train_FD001_scaled.csv to
-the repo root) to train and save the real model.
+exists. Run `python save_model.py` to train and save the real model on
+nasa_cmapss_FD001_scaled.csv (committed to the repo).
 """
 
 import os
@@ -16,9 +16,11 @@ import pandas as pd
 
 MODEL_PATH = "random_forest_model.pkl"
 
+# The 16 model inputs, matching the columns of nasa_cmapss_FD001_scaled.csv
+# (the single committed, labeled FD001 dataset). All are z-score scaled.
 FEATURE_COLS = [
-    "op_setting_1", "op_setting_2",
-    "sensor_2", "sensor_3", "sensor_4", "sensor_7", "sensor_8",
+    "operational_setting_1",
+    "sensor_2", "sensor_3", "sensor_4", "sensor_6", "sensor_7", "sensor_8",
     "sensor_9", "sensor_11", "sensor_12", "sensor_13", "sensor_14",
     "sensor_15", "sensor_17", "sensor_20", "sensor_21",
 ]

@@ -5,3 +5,6 @@ venv/
 env/
 .streamlit/secrets.toml
 .ipynb_checkpoints/
+
+# Trained model artifact — regenerate with `python save_model.py`
+*.pkl
