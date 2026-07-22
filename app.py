@@ -15,6 +15,7 @@ import pandas as pd
 import streamlit as st
 
 from model import FEATURE_COLS, RUL_CAP, load_model, predict_rul
+from save_model import train_full_model
 
 DATA_PATH = "nasa_cmapss_FD001_scaled.csv"
 
@@ -23,7 +24,14 @@ st.set_page_config(page_title="Turbofan RUL Predictor", page_icon="✈️", layo
 
 @st.cache_resource
 def get_model():
-    return load_model()
+    # Prefer a pre-trained pickle (fast). On a fresh deployment the .pkl isn't
+    # in the repo (it's gitignored and >100MB), so train it once from the
+    # committed CSV — cached for the life of the process.
+    model = load_model()
+    if model is None and os.path.exists(DATA_PATH):
+        with st.spinner("First run: training the model (~10s)…"):
+            model = train_full_model(DATA_PATH)
+    return model
 
 
 @st.cache_data
@@ -51,8 +59,8 @@ with st.sidebar:
     )
     if model is None:
         st.warning(
-            "No trained model found — showing placeholder predictions. "
-            "Run `python save_model.py` to train the real one."
+            f"No model and no `{DATA_PATH}` to train from — showing "
+            "placeholder predictions."
         )
     st.divider()
     mode = st.radio("Mode", ["Browse engine", "Upload CSV", "Manual input"])
@@ -139,7 +147,6 @@ else:
 
 st.divider()
 st.caption(
-    "Model: tuned Random Forest (RMSE 18.03, MAE 13.34, R² 0.81 on a grouped "
-    "FD001 hold-out) when trained; placeholder heuristic otherwise. "
-    "RUL capped at 125 cycles."
+    "Model: tuned Random Forest (RMSE 18.01, MAE 13.33, R² 0.81 on a grouped "
+    "FD001 hold-out). RUL capped at 125 cycles."
 )

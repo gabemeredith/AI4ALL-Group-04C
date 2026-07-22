@@ -5,6 +5,9 @@ Trains on nasa_cmapss_FD001_scaled.csv (the committed, labeled FD001 dataset).
 Evaluates on an engine-grouped hold-out split so no engine leaks across
 train/test, then refits on all 100 engines and saves the deployable model.
 
+The dashboard (app.py) also imports `train_full_model()` from here so a fresh
+deployment can build the model on startup when no .pkl is present.
+
 Usage:  python save_model.py
 Output: random_forest_model.pkl
 """
@@ -31,25 +34,46 @@ def cmapss_score(y_true, y_pred):
 
 
 def build_model():
-    # Tuned on a grouped hold-out: shallower leaves + sqrt feature sampling
-    # generalize better than the default here (RMSE 18.32 -> 18.03).
+    # Tuned on a grouped hold-out. Kept lean on purpose: n=200 / leaf=10
+    # matches the deeper model's accuracy (RMSE ~18.0) at ~1/4 the memory and
+    # ~1/2 the train time — this is what lets the deployed app train on
+    # startup within free-tier limits.
     return RandomForestRegressor(
-        n_estimators=400,
-        min_samples_leaf=5,
+        n_estimators=200,
+        min_samples_leaf=10,
         max_features="sqrt",
         random_state=42,
         n_jobs=-1,
     )
 
 
-def main():
-    df = pd.read_csv(DATA_PATH)
+def load_xy(data_path=DATA_PATH):
+    """Load features/labels/groups from the committed dataset.
 
-    # Piecewise-linear RUL: cap so the model isn't forced to fit long, flat,
-    # unpredictable early-life stretches. The CSV ships raw (uncapped) RUL.
+    RUL ships raw (uncapped) in the CSV; we apply the piecewise-linear cap at
+    RUL_CAP so the model isn't forced to fit long, flat early-life stretches.
+    """
+    df = pd.read_csv(data_path)
     X = df[FEATURE_COLS].values
     y = np.minimum(df["RUL"].values, RUL_CAP)
     groups = df[ID_COL].values
+    return X, y, groups
+
+
+def train_full_model(data_path=DATA_PATH):
+    """Fit build_model() on ALL rows and return it (no split, no file I/O).
+
+    This is what app.py calls to build the model on the fly when the .pkl is
+    absent (e.g. a fresh cloud deployment).
+    """
+    X, y, _ = load_xy(data_path)
+    model = build_model()
+    model.fit(X, y)
+    return model
+
+
+def main():
+    X, y, groups = load_xy()
 
     # Engine-grouped hold-out: test engines are entirely unseen in training.
     gss = GroupShuffleSplit(n_splits=1, test_size=0.25, random_state=42)

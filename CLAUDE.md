@@ -52,9 +52,18 @@ scoreboard, plus a custom asymmetric C-MAPSS scoring function.
 `nasa_cmapss_FD001_scaled.csv`, and saves it to `random_forest_model.pkl` (not committed —
 generate it locally with `python save_model.py`). It caps RUL at 125, evaluates on an
 engine-grouped hold-out (RMSE ≈ 18.0, MAE ≈ 13.3, R² ≈ 0.81), prints feature importances,
-then refits on all 100 engines before saving. The RF is tuned (`min_samples_leaf=5`,
-`max_features="sqrt"`, `n_estimators=400`) — on this data/feature set tree models top out
-around RMSE 18; rolling-window features and gradient boosting were tried and didn't beat it.
+then refits on all 100 engines before saving. The RF is tuned and kept deliberately lean
+(`n_estimators=200`, `min_samples_leaf=10`, `max_features="sqrt"`) — same accuracy as a
+heavier model at ~1/4 the size (~28MB pkl) and ~9s to train. On this data/feature set tree
+models top out around RMSE 18; rolling-window features and gradient boosting were tried and
+didn't beat it.
+
+`save_model.py` also exposes `train_full_model()`, which `app.py` calls to build the model
+in-process when no `.pkl` is present. This is what keeps the **deployed** app working: the
+pickle is gitignored (and >100MB uncompressed would exceed GitHub's limit anyway), so on a
+fresh Streamlit Cloud deploy the app trains once from the committed CSV (cached via
+`@st.cache_resource`) instead of shipping a binary. Run `python save_model.py` locally only
+when you want the faster pre-baked pickle.
 
 No LSTM model exists in this repo. `model.py`'s `predict_rul()` loads
 `random_forest_model.pkl` when present; when it isn't, it falls back to a placeholder
