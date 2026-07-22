@@ -368,8 +368,8 @@ by:
 
 | | | |
 |---|---|---|
-| **Erronn Bridgewater** | **Tom Chatto** | **Gabe Meredith** |
-| **Nish Methuku** | **Alejandro Hernandez** | **William Mahunda** |
+| **William Frank Mahunda** | **Tom Chatto** | **Gabe Meredith** |
+| **Nish Methuku** | **Alejandro Hernandez** | **Erronn Bridgewater** |
 | **Hunter Ngo** | | |
 
 From data preprocessing and exploratory analysis to modeling, evaluation, and the
