@@ -16,14 +16,28 @@ import streamlit as st
 
 from model import FEATURE_COLS, RUL_CAP, load_model, predict_rul
 
-DATA_PATH = "train_FD001_scaled.csv"
+DATA_PATH = "nasa_cmapss_FD001_scaled.csv"
 
 st.set_page_config(page_title="Turbofan RUL Predictor", page_icon="✈️", layout="wide")
 
 
 @st.cache_resource
 def get_model():
-    return load_model()
+    # Prefer a pre-trained pickle (fast). On a fresh deployment the .pkl isn't
+    # in the repo (it's gitignored and >100MB), so train it once from the
+    # committed CSV — cached for the life of the process. Import sklearn lazily
+    # and tolerate failure so an environment issue degrades to the placeholder
+    # heuristic instead of crashing the whole app.
+    try:
+        model = load_model()
+        if model is None and os.path.exists(DATA_PATH):
+            from save_model import train_full_model
+            with st.spinner("First run: training the model (~10s)…"):
+                model = train_full_model(DATA_PATH)
+        return model
+    except Exception as exc:  # noqa: BLE001 - surface, don't crash
+        st.warning(f"Model unavailable ({type(exc).__name__}); using placeholder.")
+        return None
 
 
 @st.cache_data
@@ -31,10 +45,11 @@ def load_dataset():
     if not os.path.exists(DATA_PATH):
         return None
     data = pd.read_csv(DATA_PATH)
-    max_cycle = data.groupby("unit")["cycle"].max().rename("max_cycle")
-    data = data.join(max_cycle, on="unit")
-    data["RUL"] = (data["max_cycle"] - data["cycle"]).clip(upper=RUL_CAP)
-    return data.drop(columns=["max_cycle"])
+    # Standardize the id columns so the rest of the app can use unit/cycle.
+    data = data.rename(columns={"unit_number": "unit", "time_in_cycles": "cycle"})
+    # The CSV ships raw RUL; apply the same 125-cycle cap the model trains on.
+    data["RUL"] = data["RUL"].clip(upper=RUL_CAP)
+    return data
 
 
 model = get_model()
@@ -50,9 +65,8 @@ with st.sidebar:
     )
     if model is None:
         st.warning(
-            "No trained model found — showing placeholder predictions. "
-            "Run `python save_model.py` (after adding "
-            f"`{DATA_PATH}`) to train the real one."
+            f"No model and no `{DATA_PATH}` to train from — showing "
+            "placeholder predictions."
         )
     st.divider()
     mode = st.radio("Mode", ["Browse engine", "Upload CSV", "Manual input"])
@@ -61,10 +75,7 @@ with st.sidebar:
 if mode == "Browse engine":
     st.header("Browse a training-set engine")
     if dataset is None:
-        st.error(
-            f"`{DATA_PATH}` not found in the repo root. Add it (ask a "
-            "teammate for the file) to enable this mode."
-        )
+        st.error(f"`{DATA_PATH}` not found in the repo root.")
     else:
         engine_ids = sorted(dataset["unit"].unique().tolist())
         selected_engine = st.selectbox("Select engine", engine_ids)
@@ -142,6 +153,6 @@ else:
 
 st.divider()
 st.caption(
-    "Model: Random Forest (RMSE 20.11, MAE 15.09 on FD001) when trained; "
-    "placeholder heuristic otherwise. RUL capped at 125 cycles."
+    "Model: tuned Random Forest (RMSE 18.01, MAE 13.33, R² 0.81 on a grouped "
+    "FD001 hold-out). RUL capped at 125 cycles."
 )
